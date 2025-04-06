@@ -22,7 +22,7 @@ const Login = () => {
       if (error) throw error;
 
       toast.success('Logged in successfully');
-      navigate('/profile');
+      navigate('/');
     } catch (error) {
       console.error('Error:', error);
       toast.error('Failed to log in');

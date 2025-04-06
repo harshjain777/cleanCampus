@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { Award, Clock } from 'lucide-react';
+import { Award, Clock, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface Profile {
   username: string;
@@ -11,7 +12,7 @@ interface Profile {
 
 interface Report {
   id: string;
-  image_url: string;
+  image_url: string | null;
   location: string;
   status: string;
   points_awarded: number;
@@ -19,48 +20,51 @@ interface Report {
 }
 
 const Profile = () => {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchProfileData();
-  }, []);
+    const fetchProfileData = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError) throw authError;
+        if (!user) {
+          toast.error('Please login to view your profile');
+          return navigate('/login');
+        }
 
-  const fetchProfileData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Please login to view your profile');
-        return;
+        // Fetch profile data
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('username, points')
+          .eq('id', user.id)
+          .single();  // Changed to single() to ensure we get one record
+
+        if (profileError) throw profileError;
+        setProfile(profileData);
+
+        // Fetch user's reports
+        const { data: reportsData, error: reportsError } = await supabase
+          .from('reports')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (reportsError) throw reportsError;
+        setReports(reportsData || []);
+      } catch (error) {
+        console.error('Error:', error);
+        toast.error('Failed to load profile data');
+      } finally {
+        setLoading(false);
       }
+    };
 
-      // Fetch profile data
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('username, points')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (profileError) throw profileError;
-      setProfile(profileData);
-
-      // Fetch user's reports
-      const { data: reportsData, error: reportsError } = await supabase
-        .from('reports')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (reportsError) throw reportsError;
-      setReports(reportsData);
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error('Failed to load profile data');
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchProfileData();
+  }, [navigate]);
 
   if (loading) {
     return (
@@ -70,43 +74,64 @@ const Profile = () => {
     );
   }
 
+  if (!profile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <AlertCircle className="h-12 w-12 text-red-600" />
+        <p className="text-lg text-gray-700">No profile data found</p>
+        <button
+          onClick={() => navigate('/update-profile')}
+          className="btn-primary"
+        >
+          Create Profile
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {profile && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Profile Summary */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center space-x-4">
-              <Award className="h-12 w-12 text-green-600" />
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">{profile.username}</h2>
-                <p className="text-gray-500">Member</p>
-              </div>
-            </div>
-            <div className="mt-6">
-              <div className="bg-green-50 rounded-lg p-4">
-                <p className="text-sm text-green-600 font-medium">Total Points</p>
-                <p className="text-3xl font-bold text-green-700">{profile.points}</p>
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Profile Summary */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center space-x-4">
+            <Award className="h-12 w-12 text-green-600" />
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">{profile.username}</h2>
+              <p className="text-gray-500">Member</p>
             </div>
           </div>
+          <div className="mt-6">
+            <div className="bg-green-50 rounded-lg p-4">
+              <p className="text-sm text-green-600 font-medium">Total Points</p>
+              <p className="text-3xl font-bold text-green-700">{profile.points}</p>
+            </div>
+          </div>
+        </div>
 
-          {/* Reports List */}
-          <div className="md:col-span-2">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Your Reports</h3>
-            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        {/* Reports List */}
+        <div className="md:col-span-2">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Your Reports</h3>
+          <div className="bg-white shadow-md rounded-lg overflow-hidden">
+            {reports.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">
+                No reports submitted yet
+              </div>
+            ) : (
               <div className="flow-root">
                 <ul role="list" className="divide-y divide-gray-200">
                   {reports.map((report) => (
                     <li key={report.id} className="p-4 hover:bg-gray-50">
                       <div className="flex items-center space-x-4">
-                        <div className="flex-shrink-0">
-                          <img
-                            src={report.image_url}
-                            alt="Report"
-                            className="h-16 w-16 rounded-lg object-cover"
-                          />
-                        </div>
+                        {report.image_url && (
+                          <div className="flex-shrink-0">
+                            <img
+                              src={report.image_url}
+                              alt="Report"
+                              className="h-16 w-16 rounded-lg object-cover"
+                            />
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {report.location}
@@ -135,10 +160,10 @@ const Profile = () => {
                   ))}
                 </ul>
               </div>
-            </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
