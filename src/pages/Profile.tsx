@@ -40,7 +40,7 @@ const Profile = () => {
         .from('profiles')
         .select('username, points')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError) throw profileError;
       setProfile(profileData);

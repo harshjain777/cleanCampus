@@ -45,9 +45,11 @@ const Home = () => {
           <div className="mt-10">
             <div className="space-y-10 md:space-y-0 md:grid md:grid-cols-3 md:gap-x-8 md:gap-y-10">
               <div className="relative">
+                <Link to="/upload" >
                 <div className="flex items-center justify-center h-12 w-12 rounded-md bg-green-500 text-white">
                   <Camera className="h-6 w-6" />
                 </div>
+                </Link>
                 <div className="mt-5">
                   <h3 className="text-lg font-medium text-gray-900">Upload Photos</h3>
                   <p className="mt-2 text-base text-gray-500">
@@ -57,9 +59,11 @@ const Home = () => {
               </div>
 
               <div className="relative">
+                <Link to='/upload' >
                 <div className="flex items-center justify-center h-12 w-12 rounded-md bg-green-500 text-white">
                   <MapPin className="h-6 w-6" />
                 </div>
+                </Link>
                 <div className="mt-5">
                   <h3 className="text-lg font-medium text-gray-900">Mark Location</h3>
                   <p className="mt-2 text-base text-gray-500">
@@ -69,9 +73,11 @@ const Home = () => {
               </div>
 
               <div className="relative">
+                <Link to='/profile' >
                 <div className="flex items-center justify-center h-12 w-12 rounded-md bg-green-500 text-white">
                   <Award className="h-6 w-6" />
                 </div>
+                </Link>
                 <div className="mt-5">
                   <h3 className="text-lg font-medium text-gray-900">Earn Rewards</h3>
                   <p className="mt-2 text-base text-gray-500">

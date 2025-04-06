@@ -1,80 +1,165 @@
-"use client";
+import React, { useEffect, useState } from 'react';
+import { Camera, Loader } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
-import { useState } from "react";
-import toast from "react-hot-toast";
-import { supabase } from "../lib/supabase";
-
-export default function Upload() {
+const Upload = () => {
+  const navigate = useNavigate();
   const [image, setImage] = useState<File | null>(null);
-  const [desc, setDesc] = useState("");
+  const [location, setLocation] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<string>('');
 
-  const handleUpload = async () => {
-    if (!image || !desc) {
-      toast.error("Please provide both image and description");
-      return;
-    }
-  
-    const fileName = `${Date.now()}-${image.name}`;
-  
-    const { error: storageError } = await supabase.storage
-      .from("reports")
-      .upload(fileName, image);
-  
-    if (storageError) {
-      toast.error("Image upload failed");
-      console.error(storageError);
-      return;
-    }
-  
-    const imageUrl = supabase.storage
-      .from("reports")
-      .getPublicUrl(fileName).data.publicUrl;
-  
-    const { error: dbError } = await supabase.from("uploads").insert([
-      { desc, image_url: imageUrl },
-    ]);
-  
-    if (dbError) {
-      toast.error("Data insert failed");
-      console.error(dbError);
-    } else {
-      toast.success("Uploaded successfully!");
-      setImage(null);
-      setDesc("");
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImage(file);
+      setPreview(URL.createObjectURL(file));
     }
   };
-  
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!location) {
+      toast.error('Please provide a location description');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('You must be logged in to submit reports');
+        return navigate('/login');
+      }
+
+      let imageUrl = null;
+      if (image) {
+        const fileExt = image.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('reports')
+          .upload(fileName, image);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('reports')
+          .getPublicUrl(fileName);
+
+        imageUrl = publicUrl;
+      }
+
+      const { error: reportError } = await supabase
+        .from('reports')
+        .insert([{
+          image_url: imageUrl || '',
+          location,
+          points_awarded: 10,
+          user_id: user.id
+        }]);
+
+      if (reportError) throw reportError;
+
+      toast.success('Report submitted successfully!');
+      navigate('/profile');
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to submit report');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) navigate('/login');
+    };
+    checkAuth();
+  }, [navigate]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="w-full max-w-md space-y-8 rounded bg-white p-8 shadow-md">
-        <div>
-          <h2 className="text-center text-2xl font-bold">Upload</h2>
-        </div>
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Report Waste Location</h1>
+        
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Upload Image (Optional)
+            </label>
+            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+              {preview ? (
+                <div className="space-y-2">
+                  <img src={preview} alt="Preview" className="max-h-64 rounded-lg" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImage(null);
+                      setPreview('');
+                    }}
+                    className="text-sm text-red-600 hover:text-red-800"
+                  >
+                    Remove image
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1 text-center">
+                  <Camera className="mx-auto h-12 w-12 text-gray-400" />
+                  <div className="flex text-sm text-gray-600">
+                    <label className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-green-500">
+                      <span>Upload a file</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={handleImageChange}
+                      />
+                    </label>
+                    <p className="pl-1">or drag and drop</p>
+                  </div>
+                  <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                </div>
+              )}
+            </div>
+          </div>
 
-        <div className="space-y-4">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setImage(e.target.files?.[0] || null)}
-            className="w-full rounded border border-gray-300 p-2"
-          />
-
-          <textarea
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="Description"
-            className="w-full rounded border border-gray-300 p-2"
-          />
+          <div>
+            <label htmlFor="location" className="block text-sm font-medium text-gray-700">
+              Location Description*
+            </label>
+            <textarea
+              id="location"
+              rows={3}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm"
+              placeholder="Describe the location (e.g., 'Near Science Building entrance', 'Behind Library')"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              required
+            />
+          </div>
 
           <button
-            onClick={handleUpload}
-            className="w-full rounded bg-blue-500 p-2 font-semibold text-white hover:bg-blue-600"
+            type="submit"
+            disabled={loading}
+            className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Upload
+            {loading ? (
+              <span className="flex items-center justify-center">
+                <Loader className="animate-spin -ml-1 mr-3 h-5 w-5" />
+                Submitting...
+              </span>
+            ) : (
+              'Submit Report'
+            )}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );
-}
+};
+
+export default Upload;
