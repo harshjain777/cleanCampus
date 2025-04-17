@@ -19,6 +19,32 @@ const Upload = () => {
     }
   };
 
+  const uploadToCloudinary = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'ml_default');
+    formData.append('api_key', '439747641958291');
+    formData.append('cloud_name', 'dgsosqpa0');
+    formData.append('timestamp', String(Date.now()));
+
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/dgsosqpa0/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || 'Upload failed');
+      return data.secure_url;
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+      throw new Error('Failed to upload image to Cloudinary');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!location) {
@@ -36,30 +62,17 @@ const Upload = () => {
 
       let imageUrl = null;
       if (image) {
-        const fileExt = image.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('reports')
-          .upload(fileName, image);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('reports')
-          .getPublicUrl(fileName);
-
-        imageUrl = publicUrl;
+        imageUrl = await uploadToCloudinary(image);
       }
-
+        
       const { error: reportError } = await supabase
-        .from('reports')
-        .insert([{
-          image_url: imageUrl || '',
-          location,
-          points_awarded: 10,
-          user_id: user.id
-        }]);
+      .from('reports')
+      .insert([{
+        image_url: imageUrl || '',
+        location,
+        points_awarded: 10,
+        user_id: user.id
+      }]);
 
       if (reportError) throw reportError;
 
@@ -72,6 +85,7 @@ const Upload = () => {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     const checkAuth = async () => {
